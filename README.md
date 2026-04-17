@@ -46,4 +46,8 @@ The prompt is the real product. It forces the model to make specific changes wit
 
 **JS-rendered URL support.** The current scraper breaks on anything that renders client-side. Playwright handles that, and it's also the right time to add SSRF hardening on the URL fetcher.
 
-**Real-time knowledge grounding.** Models don't know anything past their training cutoff so competitor moves, product launches, market shifts are invisible. Plug in live search and the optimization is working from what's actually happening right now.
+**Knowledge base + some kinda data pipeline.** Basically now the model idea about what copy is actually getting cited in AI responses, what competitors are saying, or what's working in your category beyond its training data. We would want a pipeline continuously feeding in examples winning copy, competitor positioning, live AI response patterns so rewrites are grounded in what's measurably working, not a training snapshot.
+
+**Perception tracking.** Right now there's no way to know if any of this worked. The production answer is scheduled probes send the same queries to multiple LLMs on a cadence, track how they respond to your brand over time, measure the delta before and after content changes. This can also be used to gague what each model likes i.e even if a user doesnt show up in suggestions we can check which ones of their competitors showed uo and query the model as to why they picked certain competitors and add that to knowledge stores.
+
+**Real-time knowledge grounding.** Models have a training cutoff. Competitor moves, product launches, market shifts are invisible. Live search (Perplexity, Exa, Brave) would fix that.
