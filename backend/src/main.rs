@@ -486,6 +486,9 @@ async fn fetch_content(
 ) -> Result<Json<FetchContentResponse>, (StatusCode, Json<ErrorResponse>)> {
     info!(url = %req.url, "POST /api/fetch-content");
 
+    // SSRF risk: user-supplied URL is fetched server-side with no IP validation.
+    // Fine for a local dev tool; production would need HTTPS-only enforcement
+    // and post-DNS IP range checks to block internal network access.
     let res = state
         .http
         .get(&req.url)

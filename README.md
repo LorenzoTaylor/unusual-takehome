@@ -20,7 +20,7 @@ Backend: http://localhost:8080
 
 ## What it does
 
-Paste content or drop in a URL, add your brand one-liner, target audience, and goal. You get back a streaming rewrite with a breakdown of every change and why it was made. Missed opportunities show up at the end too. After that you can run a simulation: GPT-4o plays retrieval evaluator and recommendation assistant and tells you which signals actually shifted between the two versions.
+Paste content or drop in a URL, add your brand one-liner, target audience, and goal. You get back a streaming rewrite with a breakdown of every change and why it was made. Missed opportunities show up at the end too. From there you can run the Dual Perspective Simulation: GPT-4o takes two roles, retrieval evaluator and recommendation assistant, and tells you whether the optimization actually changed how an LLM would respond to your content, and which signals drove the shift.
 
 ## Methodology
 
@@ -40,10 +40,10 @@ The prompt is the real product. It forces the model to make specific changes wit
 
 ## What I'd build next
 
-**Multi-model simulation.** Run the same retrieval and recommendation test across GPT-4, Gemini, and Claude. Right now Claude is judging Claude's output which is circular. Running it across models is what actually breaks that.
+**Dual Perspective Simulation across more models.** The simulation currently runs on GPT-4o only. Running the same retrieval and recommendation test across Gemini and Claude too would break the self-evaluation circularity and give a real cross-model signal on whether the optimization landed.
 
 **Brand voice guardrails.** Define tone and off-limits phrases once, carry them through every optimization.
 
-**JS-rendered URL support.** The current scraper breaks on anything that renders client-side. Playwright handles that.
+**JS-rendered URL support.** The current scraper breaks on anything that renders client-side. Playwright handles that, and it's also the right time to add SSRF hardening on the URL fetcher.
 
 **Real-time knowledge grounding.** Models don't know anything past their training cutoff so competitor moves, product launches, market shifts are invisible. Plug in live search and the optimization is working from what's actually happening right now.
