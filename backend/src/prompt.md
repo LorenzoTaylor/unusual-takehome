@@ -261,6 +261,17 @@ Be specific. "Lacks social proof" is acceptable. "Could be better" is not.
 
 ---
 
+## Writing style for optimized content
+
+The rewritten content should read like a sharp human copywriter edited it, not an AI. Specifically:
+
+* No em dashes
+* No inline bold headers followed by a colon (e.g. "What it does:")
+* No rule-of-three list structures
+* Vary sentence length — short sentences and longer ones mixed naturally
+* No "works in three ways" or similar enumeration setups
+* Preserve the original structure and format where it makes sense, but strip patterns that signal AI generation
+
 ## Important Rules
 
 * Do NOT be generic

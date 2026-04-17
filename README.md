@@ -8,7 +8,7 @@ Prerequisites: Rust (stable), Node.js 18+, an Anthropic API key.
 git clone <repo>
 cd unusual-takehome
 cp .env.example .env
-# add your ANTHROPIC_API_KEY to .env
+# add your ANTHROPIC_API_KEY and OPENAI_API_KEY to .env
 
 npm install
 cd frontend && npm install && cd ..

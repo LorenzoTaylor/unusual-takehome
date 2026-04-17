@@ -599,7 +599,20 @@ export default function App() {
       </div>
 
       <div style={{ marginBottom: 24 }}>
-        <SectionLabel>Content</SectionLabel>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+          <SectionLabel>Content</SectionLabel>
+          {content && (
+            <button
+              type="button"
+              onClick={() => { setContent(''); setFetchedTitle('') }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontFamily: 'var(--font)', fontSize: 11, padding: 0, transition: 'color 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--muted-light)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--muted)')}
+            >
+              Clear
+            </button>
+          )}
+        </div>
         {fetchedTitle && (
           <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6, fontStyle: 'italic' }}>
             From: {fetchedTitle}
@@ -673,15 +686,18 @@ export default function App() {
         <button type="submit" disabled={!canSubmit || phase === 'loading' || phase === 'streaming'}
           style={{
             display: 'flex', alignItems: 'center', gap: 9, padding: '10px 20px',
-            background: canSubmit && phase !== 'loading' ? 'var(--accent)' : 'var(--surface)',
-            color: canSubmit && phase !== 'loading' ? '#0b1200' : 'var(--muted)',
-            border: 'none', borderRadius: 9999,
+            background: canSubmit && phase !== 'loading' && phase !== 'streaming' ? 'var(--accent)' : 'var(--surface)',
+            color: canSubmit && phase !== 'loading' && phase !== 'streaming' ? '#0b1200' : 'var(--muted)',
+            border: phase === 'loading' || phase === 'streaming' ? '1px solid var(--border)' : 'none',
+            borderRadius: 9999,
             fontFamily: 'var(--font)', fontWeight: 600, fontSize: 13,
             cursor: canSubmit && phase !== 'loading' && phase !== 'streaming' ? 'pointer' : 'not-allowed',
             transition: 'all 0.15s',
           }}>
-          {phase === 'loading' || phase === 'streaming' ? (
+          {phase === 'loading' || (phase === 'streaming' && streamedContent.length === 0) ? (
             <><span style={{ display: 'flex', gap: 4 }}><span className="dot" /><span className="dot" /><span className="dot" /></span>Analyzing</>
+          ) : phase === 'streaming' ? (
+            <><span style={{ display: 'flex', gap: 4 }}><span className="dot" /><span className="dot" /><span className="dot" /></span>Building analysis</>
           ) : (
             <>Optimize for AI <ArrowRight size={14} /></>
           )}
