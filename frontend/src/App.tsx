@@ -360,6 +360,7 @@ export default function App() {
   const [goal,         setGoal]         = useState<PredefinedGoal>('increase_visibility')
   const [goalMode,     setGoalMode]     = useState<GoalMode>('predefined')
   const [customGoal,   setCustomGoal]   = useState('')
+  const [goalDetail,   setGoalDetail]   = useState('')
   const [phase,          setPhase]          = useState<Phase>('idle')
   const [result,         setResult]         = useState<OptimizeResult | null>(null)
   const [streamedContent, setStreamedContent] = useState('')
@@ -432,7 +433,9 @@ export default function App() {
           brand:           brand.trim(),
           target_audience: audience.trim(),
           goal_type:       goalMode,
-          goal:            goalMode === 'predefined' ? goal : customGoal.trim(),
+          goal:            goalMode === 'predefined'
+            ? (goalDetail.trim() ? `${goal}: ${goalDetail.trim()}` : goal)
+            : customGoal.trim(),
           content:         content.trim(),
         }),
       })
@@ -502,7 +505,9 @@ export default function App() {
         body: JSON.stringify({
           original: content.trim(),
           optimized: result.optimized_content,
-          goal: goalMode === 'predefined' ? goal : customGoal.trim(),
+          goal: goalMode === 'predefined'
+            ? (goalDetail.trim() ? `${goal}: ${goalDetail.trim()}` : goal)
+            : customGoal.trim(),
         }),
       })
       const data = await res.json()
@@ -649,7 +654,7 @@ export default function App() {
           {GOALS.map(({ value, label, sub, Icon }) => {
             const active = goalMode === 'predefined' && goal === value
             return (
-              <button key={value} type="button" onClick={() => { setGoal(value); setGoalMode('predefined') }}
+              <button key={value} type="button" onClick={() => { setGoal(value); setGoalMode('predefined'); setGoalDetail('') }}
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 5,
                   padding: '11px 11px',
@@ -668,6 +673,18 @@ export default function App() {
             )
           })}
         </div>
+
+        {goalMode === 'predefined' && (goal === 'reposition_brand' || goal === 'expand_market') && (
+          <input
+            type="text"
+            value={goalDetail}
+            onChange={e => setGoalDetail(e.target.value)}
+            placeholder={goal === 'reposition_brand' ? 'Reposition how? e.g. more enterprise, less startup-y' : 'Expand to who? e.g. non-technical founders'}
+            style={{ ...inputStyle, marginBottom: 12 }}
+            onFocus={e => (e.target.style.borderColor = 'var(--border-strong)')}
+            onBlur={e  => (e.target.style.borderColor = 'var(--border)')}
+          />
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0' }}>
           <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
