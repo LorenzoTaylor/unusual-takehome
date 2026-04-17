@@ -15,7 +15,7 @@ Your job is to help a user optimize their content so that AI systems are more li
 
 The user will provide:
 
-* **brand**
+* **brand_one_liner**: a single sentence describing the company and what it does (e.g. "Acme — AI-native CRM for B2B sales teams")
 * **target_audience** (defined as: type of person + problem + buying trigger)
 * **goal_type**: "predefined" or "custom"
 * **goal**:

@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import Markdown from 'react-markdown'
 import {
   ArrowRight, Copy, Check, AlertCircle, RotateCcw,
   TrendingUp, Zap, Globe, ChevronRight,
@@ -8,7 +9,14 @@ import {
 
 type PredefinedGoal = 'increase_visibility' | 'reposition_brand' | 'expand_market'
 type GoalMode = 'predefined' | 'custom'
-type Tab = 'copy' | 'changes' | 'strategy'
+type Tab = 'copy' | 'changes' | 'strategy' | 'simulate'
+type SimulatePhase = 'idle' | 'loading' | 'success' | 'error'
+
+interface SimulateResult {
+  evaluator: { verdict: string; reasoning: string }
+  assistant: { verdict: string; reasoning: string }
+  signals: { added: string[]; strengthened: string[]; unchanged: string[] }
+}
 
 interface Change {
   category: string
@@ -163,9 +171,9 @@ function StreamingCopyTab({ content }: { content: string }) {
   return (
     <div className="anim-in" style={{ animationDuration: '0.2s' }}>
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '18px 16px' }}>
-        <p style={{ fontSize: 14, lineHeight: 1.85, whiteSpace: 'pre-wrap' }}>
-          {content}<span className="cursor" />
-        </p>
+        <div style={{ fontSize: 14, lineHeight: 1.85 }} className="md-content">
+          <Markdown>{content}</Markdown><span className="cursor" />
+        </div>
       </div>
     </div>
   )
@@ -188,7 +196,9 @@ function CopyTab({ result, copied, onCopy }: { result: OptimizeResult; copied: b
           {copied ? 'Copied' : 'Copy'}
         </button>
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '18px 16px', paddingRight: 76 }}>
-          <p style={{ fontSize: 14, lineHeight: 1.85, whiteSpace: 'pre-wrap' }}>{result.optimized_content}</p>
+          <div style={{ fontSize: 14, lineHeight: 1.85 }} className="md-content">
+            <Markdown>{result.optimized_content}</Markdown>
+          </div>
         </div>
       </div>
     </div>
@@ -199,6 +209,109 @@ function ChangesTab({ result }: { result: OptimizeResult }) {
   return (
     <div className="anim-in" style={{ animationDuration: '0.28s' }}>
       {result.changes.map((change, i) => <ChangeCard key={i} change={change} index={i} />)}
+    </div>
+  )
+}
+
+function SimulateTab({
+  phase, result, simulateResult, simulateError, onRun,
+}: {
+  phase: SimulatePhase
+  result: OptimizeResult
+  simulateResult: SimulateResult | null
+  simulateError: string
+  onRun: () => void
+}) {
+  if (phase === 'idle') {
+    return (
+      <div className="anim-in" style={{ animationDuration: '0.28s' }}>
+        <p style={{ fontSize: 14, color: 'var(--muted-light)', lineHeight: 1.75, marginBottom: 20, maxWidth: '52ch' }}>
+          Simulates how an LLM interprets the content before and after — split across retrieval evaluation and recommendation selection, with a breakdown of what signals changed.
+        </p>
+        <button onClick={onRun} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px',
+          background: 'var(--accent)', color: '#0b1200',
+          border: 'none', borderRadius: 9999,
+          fontFamily: 'var(--font)', fontWeight: 600, fontSize: 13,
+          cursor: 'pointer', transition: 'opacity 0.15s',
+        }}>
+          Run Simulation <ArrowRight size={13} />
+        </button>
+      </div>
+    )
+  }
+
+  if (phase === 'loading') {
+    return (
+      <div style={{ paddingTop: 4 }}>
+        <Skeleton width="38%" height={11} mb={16} />
+        <Skeleton width="92%" mb={8} />
+        <Skeleton width="78%" delay="0.06s" mb={28} />
+        <Skeleton width="42%" height={11} mb={16} delay="0.1s" />
+        <Skeleton width="88%" mb={8} delay="0.12s" />
+        <Skeleton width="72%" delay="0.16s" mb={28} />
+        <Skeleton width="34%" height={11} mb={16} delay="0.2s" />
+        {[0, 1, 2].map(i => <Skeleton key={i} width="85%" delay={`${0.22 + i * 0.06}s`} mb={8} />)}
+      </div>
+    )
+  }
+
+  if (phase === 'error') {
+    return (
+      <div className="anim-in" style={{ padding: '13px 15px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6 }}>
+        <p style={{ fontSize: 13, color: '#f87171' }}>{simulateError}</p>
+      </div>
+    )
+  }
+
+  if (!simulateResult) return null
+
+  const { evaluator, assistant, signals } = simulateResult
+  const verdictColor = (v: string) => v === 'optimized' ? 'var(--accent)' : v === 'tie' ? 'var(--muted-light)' : '#f87171'
+  const verdictLabel = (v: string) => v === 'optimized' ? 'Optimized wins' : v === 'tie' ? 'Tie' : 'Original wins'
+
+  return (
+    <div className="anim-in" style={{ animationDuration: '0.28s', display: 'flex', flexDirection: 'column', gap: 28 }}>
+      {[
+        { label: 'Retrieval Evaluator', sub: 'Which version surfaces higher for relevant queries', data: evaluator },
+        { label: 'Recommendation Assistant', sub: 'Which brand would be recommended more confidently', data: assistant },
+      ].map(({ label, sub, data }) => (
+        <div key={label}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
+            <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', color: 'var(--muted)', textTransform: 'uppercase' }}>{label}</p>
+            <span style={{ fontSize: 11, fontWeight: 600, color: verdictColor(data.verdict) }}>{verdictLabel(data.verdict)}</span>
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, fontStyle: 'italic' }}>{sub}</p>
+          <p style={{ fontSize: 13, color: 'var(--muted-light)', lineHeight: 1.7 }}>{data.reasoning}</p>
+        </div>
+      ))}
+
+      <div>
+        <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 14 }}>
+          Signal Changes
+        </p>
+        {[
+          { key: 'added', label: 'Added', color: 'var(--accent)' },
+          { key: 'strengthened', label: 'Strengthened', color: 'var(--text)' },
+          { key: 'unchanged', label: 'Unchanged', color: 'var(--muted)' },
+        ].map(({ key, label, color }) => {
+          const items = signals[key as keyof typeof signals] ?? []
+          if (!items.length) return null
+          return (
+            <div key={key} style={{ marginBottom: 14 }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color, marginBottom: 6, letterSpacing: '0.04em' }}>{label}</p>
+              <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {items.map((item, i) => (
+                  <li key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, color: 'var(--muted-light)', lineHeight: 1.55 }}>
+                    <span style={{ color, marginTop: 4, flexShrink: 0, fontSize: 6 }}>◆</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -259,6 +372,9 @@ export default function App() {
   const [fetching,     setFetching]     = useState(false)
   const [fetchError,   setFetchError]   = useState('')
   const [fetchedTitle, setFetchedTitle] = useState('')
+  const [simulatePhase,  setSimulatePhase]  = useState<SimulatePhase>('idle')
+  const [simulateResult, setSimulateResult] = useState<SimulateResult | null>(null)
+  const [simulateError,  setSimulateError]  = useState('')
 
   // Panel is visible when there's something to show
   const showPanel = phase === 'loading' || phase === 'streaming' || phase === 'success'
@@ -304,6 +420,9 @@ export default function App() {
     setError('')
     setActiveTab('copy')
     setPanelOpen(true)
+    setSimulatePhase('idle')
+    setSimulateResult(null)
+    setSimulateError('')
 
     try {
       const res = await fetch('/api/optimize', {
@@ -339,11 +458,12 @@ export default function App() {
 
         for (const frame of frames) {
           let eventType = ''
-          let data = ''
+          const dataLines: string[] = []
           for (const line of frame.split('\n')) {
             if (line.startsWith('event: ')) eventType = line.slice(7).trim()
-            if (line.startsWith('data: ')) data = line.slice(6)
+            if (line.startsWith('data: ')) dataLines.push(line.slice(6))
           }
+          const data = dataLines.join('\n')
 
           if (eventType === 'token') {
             accumulatedRef.current += data
@@ -367,6 +487,31 @@ export default function App() {
       setError(err instanceof Error ? err.message : 'Unexpected error')
       setPhase('error')
       setPanelOpen(false)
+    }
+  }
+
+  async function handleSimulate() {
+    if (!result) return
+    setSimulatePhase('loading')
+    setSimulateResult(null)
+    setSimulateError('')
+    try {
+      const res = await fetch('/api/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          original: content.trim(),
+          optimized: result.optimized_content,
+          goal: goalMode === 'predefined' ? goal : customGoal.trim(),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Simulation failed')
+      setSimulateResult(data as SimulateResult)
+      setSimulatePhase('success')
+    } catch (err) {
+      setSimulateError(err instanceof Error ? err.message : 'Unexpected error')
+      setSimulatePhase('error')
     }
   }
 
@@ -472,8 +617,8 @@ export default function App() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 24 }}>
         <div>
-          <SectionLabel>Brand</SectionLabel>
-          <input type="text" value={brand} onChange={e => setBrand(e.target.value)} placeholder="Acme, Inc." style={inputStyle}
+          <SectionLabel>Brand One-Liner</SectionLabel>
+          <input type="text" value={brand} onChange={e => setBrand(e.target.value)} placeholder="Acme — AI-native CRM for B2B sales teams" style={inputStyle}
             onFocus={e => (e.target.style.borderColor = 'var(--border-strong)')}
             onBlur={e  => (e.target.style.borderColor = 'var(--border)')} />
         </div>
@@ -513,7 +658,7 @@ export default function App() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0' }}>
           <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-          <span style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '0.08em' }}>or</span>
+          <span style={{ fontSize: 12, color: 'var(--muted-light)', letterSpacing: '0.1em' }}>or</span>
           <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
         </div>
 
@@ -658,6 +803,9 @@ export default function App() {
               <TabBtn active={activeTab === 'strategy'} disabled={phase === 'loading' || phase === 'streaming'} onClick={() => setActiveTab('strategy')}>
                 Strategy
               </TabBtn>
+              <TabBtn active={activeTab === 'simulate'} disabled={phase !== 'success'} onClick={() => setActiveTab('simulate')}>
+                Simulate
+              </TabBtn>
             </div>
 
             {/* Tab content */}
@@ -671,6 +819,15 @@ export default function App() {
                   {activeTab === 'copy'     && <CopyTab     result={result} copied={copied} onCopy={handleCopy} />}
                   {activeTab === 'changes'  && <ChangesTab  result={result} />}
                   {activeTab === 'strategy' && <StrategyTab result={result} />}
+                  {activeTab === 'simulate' && (
+                    <SimulateTab
+                      phase={simulatePhase}
+                      result={result}
+                      simulateResult={simulateResult}
+                      simulateError={simulateError}
+                      onRun={handleSimulate}
+                    />
+                  )}
                 </div>
               ) : null}
             </div>

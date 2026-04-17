@@ -23,6 +23,7 @@ const DELIMITER: &str = "<<<ANALYSIS>>>";
 struct AppState {
     http: Client,
     api_key: String,
+    openai_api_key: String,
 }
 
 #[derive(Deserialize)]
@@ -37,6 +38,13 @@ struct OptimizeRequest {
 #[derive(Deserialize)]
 struct FetchContentRequest {
     url: String,
+}
+
+#[derive(Deserialize)]
+struct SimulateRequest {
+    original: String,
+    optimized: String,
+    goal: String,
 }
 
 #[derive(Serialize)]
@@ -174,7 +182,7 @@ async fn optimize(
 
         // ── Real Anthropic streaming call ──────────────────────────────────────
         let user_message = format!(
-            "brand: {}\ntarget_audience: {}\ngoal_type: {}\ngoal: {}\n\ncontent:\n{}",
+            "brand_one_liner: {}\ntarget_audience: {}\ngoal_type: {}\ngoal: {}\n\ncontent:\n{}",
             req.brand, req.target_audience, req.goal_type, req.goal, req.content
         );
 
@@ -382,6 +390,96 @@ async fn optimize(
     Sse::new(ReceiverStream::new(rx))
 }
 
+async fn call_gpt(http: &Client, api_key: &str, prompt: &str) -> Result<Value, String> {
+    let body = json!({
+        "model": "gpt-4o",
+        "messages": [{ "role": "user", "content": prompt }],
+        "max_tokens": 600
+    });
+    let res = http
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        let t = res.text().await.unwrap_or_default();
+        return Err(format!("OpenAI error: {t}"));
+    }
+    let v: Value = res.json().await.map_err(|e| e.to_string())?;
+    let content = v["choices"][0]["message"]["content"].as_str().unwrap_or("{}");
+    match (content.find('{'), content.rfind('}')) {
+        (Some(s), Some(e)) if e > s => serde_json::from_str(&content[s..=e]).map_err(|e| e.to_string()),
+        _ => Err("no JSON in GPT response".into()),
+    }
+}
+
+async fn call_claude_json(http: &Client, api_key: &str, prompt: &str) -> Result<Value, String> {
+    let body = json!({
+        "model": MODEL,
+        "max_tokens": 600,
+        "messages": [{ "role": "user", "content": prompt }]
+    });
+    let res = http
+        .post("https://api.anthropic.com/v1/messages")
+        .header("x-api-key", api_key)
+        .header("anthropic-version", "2023-06-01")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        let t = res.text().await.unwrap_or_default();
+        return Err(format!("Anthropic error: {t}"));
+    }
+    let v: Value = res.json().await.map_err(|e| e.to_string())?;
+    let content = v["content"][0]["text"].as_str().unwrap_or("{}");
+    match (content.find('{'), content.rfind('}')) {
+        (Some(s), Some(e)) if e > s => serde_json::from_str(&content[s..=e]).map_err(|e| e.to_string()),
+        _ => Err("no JSON in Claude response".into()),
+    }
+}
+
+async fn simulate(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<SimulateRequest>,
+) -> Result<Json<Value>, (StatusCode, Json<ErrorResponse>)> {
+    info!(goal = %req.goal, "POST /api/simulate");
+
+    let evaluator_prompt = format!(
+        "You are an AI search/retrieval system deciding which content better matches a user's search intent.\n\nOriginal:\n{}\n\nOptimized:\n{}\n\nGoal: {}\n\nWhich version would surface higher in AI retrieval for queries related to this goal? Respond with raw JSON only, no commentary:\n{{\"verdict\": \"original\" or \"optimized\" or \"tie\", \"reasoning\": \"one concise paragraph\"}}",
+        req.original, req.optimized, req.goal
+    );
+
+    let assistant_prompt = format!(
+        "You are an AI assistant helping a user evaluate solutions. Based only on these two content versions, which would you recommend more confidently when answering a question related to the goal?\n\nOriginal:\n{}\n\nOptimized:\n{}\n\nGoal: {}\n\nRespond with raw JSON only, no commentary:\n{{\"verdict\": \"original\" or \"optimized\" or \"tie\", \"reasoning\": \"one concise paragraph\"}}",
+        req.original, req.optimized, req.goal
+    );
+
+    let signals_prompt = format!(
+        "Compare these two content versions. Identify what signals changed.\n\nOriginal:\n{}\n\nOptimized:\n{}\n\nList signals that were added (in optimized, not in original), strengthened (clearer or stronger in optimized), or unchanged. Keep each signal to one short phrase. Respond with raw JSON only:\n{{\"added\": [\"...\"], \"strengthened\": [\"...\"], \"unchanged\": [\"...\"]}}",
+        req.original, req.optimized
+    );
+
+    info!("running parallel GPT evaluator + assistant calls");
+    let (ev_res, as_res) = tokio::join!(
+        call_gpt(&state.http, &state.openai_api_key, &evaluator_prompt),
+        call_gpt(&state.http, &state.openai_api_key, &assistant_prompt),
+    );
+
+    let evaluator = ev_res.map_err(|e| { error!(err = %e, "evaluator call failed"); make_err(StatusCode::BAD_GATEWAY, e) })?;
+    let assistant = as_res.map_err(|e| { error!(err = %e, "assistant call failed"); make_err(StatusCode::BAD_GATEWAY, e) })?;
+
+    info!("running Claude signal consistency check");
+    let signals = call_claude_json(&state.http, &state.api_key, &signals_prompt)
+        .await
+        .map_err(|e| { error!(err = %e, "signals call failed"); make_err(StatusCode::BAD_GATEWAY, e) })?;
+
+    info!("simulate complete");
+    Ok(Json(json!({ "evaluator": evaluator, "assistant": assistant, "signals": signals })))
+}
+
 async fn fetch_content(
     State(state): State<Arc<AppState>>,
     Json(req): Json<FetchContentRequest>,
@@ -508,17 +606,20 @@ async fn main() {
     dotenvy::dotenv().ok();
 
     let api_key = std::env::var("ANTHROPIC_API_KEY").expect("ANTHROPIC_API_KEY must be set");
+    let openai_api_key = std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY must be set");
 
     info!("starting backend");
 
     let state = Arc::new(AppState {
         http: Client::new(),
         api_key,
+        openai_api_key,
     });
 
     let app = Router::new()
         .route("/api/health", get(health))
         .route("/api/optimize", post(optimize))
+        .route("/api/simulate", post(simulate))
         .route("/api/fetch-content", post(fetch_content))
         .with_state(state)
         .layer(CorsLayer::permissive());

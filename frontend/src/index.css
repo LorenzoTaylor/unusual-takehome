@@ -58,6 +58,18 @@ body { min-height: 100vh; }
 
 textarea { resize: none; }
 
+.md-content p  { margin-bottom: 1em; }
+.md-content p:last-child { margin-bottom: 0; }
+.md-content h1, .md-content h2, .md-content h3 { font-weight: 600; margin: 1.2em 0 0.4em; }
+.md-content h1 { font-size: 1.2em; }
+.md-content h2 { font-size: 1.1em; }
+.md-content h3 { font-size: 1em; }
+.md-content strong { font-weight: 600; color: var(--text); }
+.md-content em { font-style: italic; }
+.md-content hr { border: none; border-top: 1px solid var(--border); margin: 1.2em 0; }
+.md-content ul, .md-content ol { padding-left: 1.4em; margin-bottom: 1em; }
+.md-content li { margin-bottom: 0.3em; }
+
 /* ── Animations ─────────────────────────────────── */
 
 @keyframes fade-up {
